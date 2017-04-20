@@ -244,6 +244,10 @@ ElasticsearchTransform.prototype._flush = function _flush(callback) {
  * @returns {undefined}
  */
 ElasticsearchTransform.prototype._transform = function _transform(record, enc, callback) {
+    if (record.hasOwnProperty('do')) {
+        return callback();
+    }
+
     if (this.logger) {
         this.logger.debug('Adding to Elasticsearch queue', { record: record });
     }
