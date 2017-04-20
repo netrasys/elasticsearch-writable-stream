@@ -1,11 +1,17 @@
 'use strict';
 
-var util = require('util'),
+var EventEmitter = require('events').EventEmitter,
+    Transform = require('stream').Transform,
+    util = require('util'),
     assert = require('assert'),
-    FlushWritable = require('flushwritable'),
     _ = require('lodash');
 
-util.inherits(ElasticsearchWritable, FlushWritable);
+function myTransform(opts) {
+    Transform.call(this, opts);
+}
+util.inherits(myTransform, Transform);
+
+util.inherits(ElasticsearchTransform, myTransform);
 
 /**
  * Transform records into a format required by Elasticsearch bulk API
@@ -73,13 +79,13 @@ function validateOperation(operation) {
  * @param {number} [options.flushTimeout=null] Number of ms to flush records after, if highWaterMark hasn't been reached
  * @param {Object} [options.logger] Instance of a logger like bunyan or winston
  */
-function ElasticsearchWritable(client, options) {
+function ElasticsearchTransform(client, options) {
     assert(client, 'client is required');
 
     options = options || {};
     options.objectMode = true;
 
-    FlushWritable.call(this, options);
+    myTransform.call(this, options);
 
     this.client = client;
     this.logger = options.logger || null;
@@ -97,8 +103,10 @@ function ElasticsearchWritable(client, options) {
  * @param {array} records
  * @param {Function} callback
  */
-ElasticsearchWritable.prototype.bulkWrite = function bulkWrite(records, callback) {
+ElasticsearchTransform.prototype.bulkWrite = function bulkWrite(records, callback) {
     this.client.bulk({ body: records }, function bulkCallback(err, data) {
+        var combineObj;
+        var zipped;
         if (err) {
             err.records = records;
 
@@ -107,12 +115,12 @@ ElasticsearchWritable.prototype.bulkWrite = function bulkWrite(records, callback
 
         if (data.errors === true) {
             var errors = _.chain(data.items)
-            .map(function(item) {
-                return _.map(item, 'error')[0];
-            })
-            .filter(_.isString)
-            .uniq()
-            .value();
+                .map(function(item) {
+                    return _.map(item, 'error')[0];
+                })
+                .filter(_.isString)
+                .uniq()
+                .value();
 
             if (this.logger) {
                 errors.forEach(this.logger.error.bind(this.logger));
@@ -122,6 +130,20 @@ ElasticsearchWritable.prototype.bulkWrite = function bulkWrite(records, callback
             error.records = records;
 
             return callback(error);
+        } else {
+            combineObj = {
+                response: data,
+                records: records.filter((value) => {
+                    return !value.hasOwnProperty('index'); //filter out action objs see: https://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/api-reference.html#api-bulk
+                })
+            }
+
+            zipped = combineObj.records.map(function(val, i) {
+                return Object.assign(val, combineObj.response.items[i].index)
+            })
+            zipped.forEach(function(val) {
+                this.push(val);
+            }, this)
         }
 
         callback();
@@ -135,7 +157,7 @@ ElasticsearchWritable.prototype.bulkWrite = function bulkWrite(records, callback
  * @param {object} operation
  * @param {Function} callback
  */
-ElasticsearchWritable.prototype.partialUpdate = function partialUpdate(operation, callback) {
+ElasticsearchTransform.prototype.partialUpdate = function partialUpdate(operation, callback) {
     if (this.logger) {
         this.logger.debug('Executing update_by_query in Elasticsearch');
     }
@@ -177,7 +199,7 @@ ElasticsearchWritable.prototype.partialUpdate = function partialUpdate(operation
  * @param {Function} callback
  * @return {undefined}
  */
-ElasticsearchWritable.prototype._flush = function _flush(callback) {
+ElasticsearchTransform.prototype._flush = function _flush(callback) {
     clearTimeout(this.flushTimeoutId);
 
     if (this.queue.length === 0) {
@@ -221,7 +243,7 @@ ElasticsearchWritable.prototype._flush = function _flush(callback) {
  * @param {Function} callback
  * @returns {undefined}
  */
-ElasticsearchWritable.prototype._write = function _write(record, enc, callback) {
+ElasticsearchTransform.prototype._transform = function _transform(record, enc, callback) {
     if (this.logger) {
         this.logger.debug('Adding to Elasticsearch queue', { record: record });
     }
@@ -255,4 +277,4 @@ ElasticsearchWritable.prototype._write = function _write(record, enc, callback) 
     callback();
 };
 
-module.exports = ElasticsearchWritable;
+module.exports = ElasticsearchTransform;
