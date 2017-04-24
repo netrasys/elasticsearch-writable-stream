@@ -108,6 +108,11 @@ ElasticsearchTransform.prototype.bulkWrite = function bulkWrite(records, callbac
         var combineObj;
         var zipped;
         if (err) {
+
+            if (this.logger) {
+                this.logger.error('err', err)
+            }
+
             err.records = records;
 
             return callback(err);
@@ -123,7 +128,7 @@ ElasticsearchTransform.prototype.bulkWrite = function bulkWrite(records, callbac
                 .value();
 
             if (this.logger) {
-                errors.forEach(this.logger.error.bind(this.logger));
+                this.logger.error('data.errors', errors)
             }
 
             var error = new Error(errors);
