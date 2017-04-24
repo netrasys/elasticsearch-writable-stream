@@ -119,6 +119,10 @@ ElasticsearchTransform.prototype.bulkWrite = function bulkWrite(records, callbac
         }
 
         if (data.errors === true) {
+            if (this.logger) {
+                this.logger.error('data.errors', errors)
+            }
+
             var errors = _.chain(data.items)
                 .map(function(item) {
                     return _.map(item, 'error')[0];
@@ -126,10 +130,6 @@ ElasticsearchTransform.prototype.bulkWrite = function bulkWrite(records, callbac
                 .filter(_.isString)
                 .uniq()
                 .value();
-
-            if (this.logger) {
-                this.logger.error('data.errors', errors)
-            }
 
             var error = new Error(errors);
             error.records = records;
