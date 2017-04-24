@@ -183,7 +183,7 @@ ElasticsearchTransform.prototype.partialUpdate = function partialUpdate(operatio
         }
 
         if (this.logger) {
-            this.logger.info('Updated %d records (via update_by_query) in Elasticsearch', data.updated);
+            this.logger.verbose('Updated %d records (via update_by_query) in Elasticsearch', data.updated);
         }
 
         this.writtenRecords += data.updated;
@@ -225,7 +225,7 @@ ElasticsearchTransform.prototype._flush = function _flush(callback) {
         }
 
         if (this.logger) {
-            this.logger.info('Wrote %d records to Elasticsearch', recordsCount);
+            this.logger.verbose('Wrote %d records to Elasticsearch', recordsCount);
         }
 
         this.writtenRecords += recordsCount;
