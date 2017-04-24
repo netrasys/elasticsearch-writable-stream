@@ -121,6 +121,7 @@ ElasticsearchTransform.prototype.bulkWrite = function bulkWrite(records, callbac
         if (data.errors === true) {
             if (this.logger) {
                 this.logger.error('data.errors', data.errors)
+                this.logger.error(data);
             }
 
             var errors = _.chain(data.items)
